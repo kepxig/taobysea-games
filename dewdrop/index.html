@@ -1,0 +1,1679 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:,">
+  <title>Dewdrop Garden — a gravity garden puzzle</title>
+  <style>
+/* Dewdrop Garden: the page around the canvas. One palette, one voice:
+   deep garden green, warm light, and the flower's pink for what matters. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #0d1f14;
+  color: #eaf6e3;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.page {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 18px 20px 26px;
+}
+
+.masthead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 12px;
+}
+
+.brand h1 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 34px;
+  letter-spacing: 0.5px;
+  color: #ffd166;
+}
+
+.tagline {
+  margin: 4px 0 0;
+  color: #9dbf9a;
+  font-size: 14px;
+}
+
+.stats {
+  display: flex;
+  gap: 22px;
+  margin: 0;
+  text-align: right;
+}
+
+.stats div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+.stats dt {
+  color: #9dbf9a;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.stats dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 2px solid #2c5238;
+  border-radius: 14px;
+  background: #0e2418;
+}
+
+.hint {
+  margin: 10px 2px 0;
+  color: #c9e2c0;
+  font-size: 15px;
+}
+
+.controls {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.compass {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  grid-template-rows: repeat(3, 44px);
+  gap: 4px;
+}
+
+.compass button:nth-child(1) { grid-column: 2; grid-row: 1; }
+.compass button:nth-child(2) { grid-column: 1; grid-row: 2; }
+.compass button:nth-child(3) { grid-column: 2; grid-row: 3; }
+.compass button:nth-child(4) { grid-column: 3; grid-row: 2; }
+
+.controls button {
+  border: 1px solid #2c5238;
+  border-radius: 10px;
+  background: #132a1c;
+  color: #eaf6e3;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.controls button:hover { background: #1e5233; }
+.controls button:active { background: #2f7d4f; }
+
+.compass button {
+  width: 44px;
+  height: 44px;
+  font-size: 17px;
+  padding: 0;
+}
+
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.actions button { padding: 10px 16px; font-size: 14px; }
+
+.keys {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  color: #9dbf9a;
+  font-size: 13px;
+}
+
+/* Narrow screens: stack the header and let the stats wrap instead of overflowing. */
+@media (max-width: 720px) {
+  .page { padding: 14px 12px 22px; }
+  .masthead { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .brand h1 { font-size: 28px; }
+  .stats { flex-wrap: wrap; gap: 10px 18px; text-align: left; }
+  .stats div { align-items: flex-start; }
+  .controls { gap: 14px; }
+  .actions button { min-height: 44px; }
+}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <div class="brand">
+        <h1>Dewdrop Garden</h1>
+        <p class="tagline">Steer gravity. Gather the light. Wake the flower.</p>
+      </div>
+      <dl class="stats">
+        <div><dt>Garden</dt><dd id="hud-level">Garden 1 of 8 — First Light</dd></div>
+        <div><dt>Score</dt><dd id="hud-score">Score 0</dd></div>
+        <div><dt>Lives</dt><dd id="hud-lives">Lives ♥♥♥</dd></div>
+        <div><dt>Sparkles</dt><dd id="hud-sparkles">Sparkles 0/3</dd></div>
+        <div><dt>Turns</dt><dd id="hud-rotations">Turns 0</dd></div>
+        <div><dt>Time</dt><dd id="hud-time">0:00</dd></div>
+      </dl>
+    </header>
+
+    <canvas id="game" aria-label="Dewdrop Garden playfield"></canvas>
+
+    <p class="hint" id="hud-hint">Steer gravity with the arrow keys. Gather every sparkle, then reach the flower.</p>
+
+    <section class="controls" aria-label="Controls">
+      <div class="compass">
+        <button type="button" data-steer="up" aria-label="Gravity up">▲</button>
+        <button type="button" data-steer="left" aria-label="Gravity left">◀</button>
+        <button type="button" data-steer="down" aria-label="Gravity down">▼</button>
+        <button type="button" data-steer="right" aria-label="Gravity right">▶</button>
+      </div>
+      <div class="actions">
+        <button type="button" id="begin-button">Begin</button>
+        <button type="button" id="rotate-button">Turn gravity ⟳</button>
+        <button type="button" id="restart-button">Restart run</button>
+        <button type="button" id="mute-button">Sound on</button>
+      </div>
+      <p class="keys">Arrow keys or WASD steer gravity · Space turns it · R restarts · M mutes · Enter begins and moves on</p>
+    </section>
+  </main>
+  <script>
+// ===== config.js =====
+
+// Dewdrop Garden: tuning, palette and the eight garden levels.
+// A level is a grid of characters, 16 columns by 10 rows. The legend:
+//   # wall (hedge)   . empty   S drop start   o sparkle   * flower goal
+//   ^ thorn          B beetle patrolling left-right   V beetle patrolling up-down
+//   A portal ring    a the portal ring it leads to
+// Every sparkle and the flower sit in one connected open region, so a level
+// is always finishable by steering gravity; thorns and beetles are hazards,
+// never walls.
+
+const TILE = 48;
+const COLS = 16;
+const ROWS = 10;
+const FIELD_WIDTH = COLS * TILE;
+const FIELD_HEIGHT = ROWS * TILE;
+
+const GRAVITY = 1200;
+const MAX_SPEED = 500;
+const DROP_RADIUS = 14;
+const BEETLE_SPEED = 58;
+const BEETLE_SIZE = 28;
+const PORTAL_COOLDOWN = 0.6;
+const INVULNERABLE_SECONDS = 1.5;
+const START_LIVES = 3;
+const SPARKLE_POINTS = 100;
+const LEVEL_CLEAR_POINTS = 250;
+const ROTATION_BONUS = 25;
+const TIME_BONUS_PER_SECOND = 10;
+const VICTORY_LIFE_BONUS = 500;
+
+const PALETTE = {
+  page: '#0d1f14',
+  panel: '#132a1c',
+  panelEdge: '#2c5238',
+  ink: '#eaf6e3',
+  dim: '#9dbf9a',
+  accent: '#ffd166',
+  leaf: '#2f7d4f',
+  leafDark: '#1e5233',
+  moss: '#3a9e63',
+  dew: '#7dd8ff',
+  dewCore: '#eafcff',
+  spark: '#ffe066',
+  thorn: '#e4572e',
+  beetle: '#8b5cf6',
+  flower: '#ff8fb3',
+  flowerOpen: '#ffb3c8',
+  portal: '#c084fc',
+};
+
+const LEVELS = [
+  {
+    name: 'First Light',
+    hint: 'Steer gravity with the arrow keys. Gather every sparkle, then reach the flower.',
+    parTime: 25,
+    parRotations: 6,
+    map: [
+      '################',
+      '#S...o.........#',
+      '#..............#',
+      '#....o.........#',
+      '#..............#',
+      '#........o.....#',
+      '#..............#',
+      '#..........*...#',
+      '#..............#',
+      '################',
+    ],
+  },
+  {
+    name: 'Two Gardens',
+    hint: 'A hedge splits the garden. Slip through the gaps, top and bottom.',
+    parTime: 35,
+    parRotations: 9,
+    map: [
+      '################',
+      '#S.....#.......#',
+      '#..............#',
+      '#......#...o...#',
+      '#......#.......#',
+      '#..o...#.......#',
+      '#......#.......#',
+      '#..............#',
+      '#......#...*...#',
+      '################',
+    ],
+  },
+  {
+    name: 'Thorn Hedge',
+    hint: 'Thorns sting. Ride the ceiling and the walls, and only touch down in the gaps.',
+    parTime: 40,
+    parRotations: 10,
+    map: [
+      '################',
+      '#S.............#',
+      '#..............#',
+      '#..o....o....o.#',
+      '#..............#',
+      '#..............#',
+      '#..o........o.*#',
+      '#..............#',
+      '#^^^..^^^^..^^^#',
+      '################',
+    ],
+  },
+  {
+    name: 'Beetle Run',
+    hint: 'Beetles patrol the shelves. Time your crossing between their rounds.',
+    parTime: 45,
+    parRotations: 11,
+    map: [
+      '################',
+      '#S....o........#',
+      '#..######......#',
+      '#........o.....#',
+      '#....B.........#',
+      '#..######......#',
+      '#........o.....#',
+      '#......B....*..#',
+      '#..............#',
+      '################',
+    ],
+  },
+  {
+    name: 'Twin Doors',
+    hint: 'The hedge has no gap. Step into the glowing ring and come out the other side.',
+    parTime: 40,
+    parRotations: 10,
+    map: [
+      '################',
+      '#S......#......#',
+      '#.......#..o...#',
+      '#...A...#......#',
+      '#.......#......#',
+      '#.......#......#',
+      '#....o..#..a...#',
+      '#.......#......#',
+      '#.......#..*...#',
+      '################',
+    ],
+  },
+  {
+    name: 'The Long Way',
+    hint: 'A winding path through the tall grass. Every sparkle is on the way.',
+    parTime: 55,
+    parRotations: 14,
+    map: [
+      '################',
+      '#S.............#',
+      '#.##########...#',
+      '#.#........#...#',
+      '#.#..o.....#...#',
+      '#.#........#...#',
+      '#.####..####...#',
+      '#....o.....#...#',
+      '#....#.....#*..#',
+      '################',
+    ],
+  },
+  {
+    name: 'Beetle Garden',
+    hint: 'Thorns below, beetles everywhere. Keep moving and never linger.',
+    parTime: 55,
+    parRotations: 14,
+    map: [
+      '################',
+      '#S.....o.......#',
+      '#..^^^...^^^...#',
+      '#..............#',
+      '#....B.....V...#',
+      '#..............#',
+      '#..o....^^^..o.#',
+      '#..............#',
+      '#.....B.....*..#',
+      '################',
+    ],
+  },
+  {
+    name: 'Bloom',
+    hint: 'The whole garden at once. Rings, beetles and thorns — and one last flower.',
+    parTime: 70,
+    parRotations: 18,
+    map: [
+      '################',
+      '#S....#....o...#',
+      '#.....#........#',
+      '#..o..#..^^^...#',
+      '#.....#........#',
+      '#.#####..#####.#',
+      '#......A......a#',
+      '#..B......V....#',
+      '#....o.....#*..#',
+      '################',
+    ],
+  },
+];
+
+/** A tiny seeded random source, so a staged screenshot always looks the same. */
+function mulberry32(seed) {
+  let value = seed >>> 0;
+  return function next() {
+    value = (value + 0x6d2b79f5) >>> 0;
+    let t = value;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ===== world.js =====
+
+// Dewdrop Garden: the world. One level is a grid of tiles; a drop of water
+// slides through it under a gravity the player steers. This file owns the
+// level state, the drop's motion, collisions, sparkles, thorns, beetles,
+// portals and the flower — everything the rules of the game need, and
+// nothing about drawing or input.
+
+
+const EVENT_COLLECT = 'collect';
+const EVENT_HIT = 'hit';
+const EVENT_FLOWER_OPEN = 'flower-open';
+const EVENT_PORTAL = 'portal';
+const EVENT_LEVEL_CLEAR = 'level-clear';
+const EVENT_GAME_OVER = 'game-over';
+const EVENT_VICTORY = 'victory';
+
+const GRAVITY_DIRECTIONS = {
+  down: { x: 0, y: 1 },
+  up: { x: 0, y: -1 },
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+};
+
+/** Read one level map into the pieces the step function needs. */
+function parseLevel(level) {
+  const walls = new Set();
+  const sparkles = [];
+  const thorns = [];
+  const beetles = [];
+  const portals = {};
+  let start = { x: TILE * 1.5, y: TILE * 1.5 };
+  let flower = { x: TILE * 14.5, y: TILE * 8.5 };
+  for (let row = 0; row < ROWS; row += 1) {
+    for (let col = 0; col < COLS; col += 1) {
+      const cell = level.map[row][col];
+      const key = `${col},${row}`;
+      if (cell === '#') walls.add(key);
+      else if (cell === 'o') sparkles.push({ col, row, x: (col + 0.5) * TILE, y: (row + 0.5) * TILE, taken: false });
+      else if (cell === '*') flower = { col, row, x: (col + 0.5) * TILE, y: (row + 0.5) * TILE };
+      else if (cell === '^') thorns.push({ col, row, x: col * TILE, y: row * TILE });
+      else if (cell === 'S') start = { x: (col + 0.5) * TILE, y: (row + 0.5) * TILE };
+      else if (cell === 'A') portals.A = { col, row, x: (col + 0.5) * TILE, y: (row + 0.5) * TILE };
+      else if (cell === 'a') portals.B = { col, row, x: (col + 0.5) * TILE, y: (row + 0.5) * TILE };
+      else if (cell === 'B' || cell === 'V') {
+        beetles.push({
+          col,
+          row,
+          axis: cell === 'B' ? 'x' : 'y',
+          dir: 1,
+          x: (col + 0.5) * TILE,
+          y: (row + 0.5) * TILE,
+        });
+      }
+    }
+  }
+  // A beetle turns around where a wall would stop it: find its run of open tiles.
+  for (const beetle of beetles) {
+    if (beetle.axis === 'x') {
+      let left = beetle.col;
+      while (left > 0 && !walls.has(`${left - 1},${beetle.row}`)) left -= 1;
+      let right = beetle.col;
+      while (right < COLS - 1 && !walls.has(`${right + 1},${beetle.row}`)) right += 1;
+      beetle.min = (left + 0.5) * TILE;
+      beetle.max = (right + 0.5) * TILE;
+    } else {
+      let top = beetle.row;
+      while (top > 0 && !walls.has(`${beetle.col},${top - 1}`)) top -= 1;
+      let bottom = beetle.row;
+      while (bottom < ROWS - 1 && !walls.has(`${beetle.col},${bottom + 1}`)) bottom += 1;
+      beetle.min = (top + 0.5) * TILE;
+      beetle.max = (bottom + 0.5) * TILE;
+    }
+  }
+  return { walls, sparkles, thorns, beetles, portals, start, flower };
+}
+
+/** A fresh run: level 0, three lives, no score yet. */
+function createWorld() {
+  return {
+    levelIndex: 0,
+    level: LEVELS[0],
+    parsed: parseLevel(LEVELS[0]),
+    drop: { x: 0, y: 0, vx: 0, vy: 0 },
+    gravity: { ...GRAVITY_DIRECTIONS.down },
+    gravityName: 'down',
+    lives: START_LIVES,
+    score: 0,
+    rotationsUsed: 0,
+    elapsed: 0,
+    sparklesTaken: 0,
+    flowerOpen: false,
+    invulnerable: 0,
+    portalCooldown: 0,
+    cleared: false,
+    over: false,
+    won: false,
+  };
+}
+
+/** Put the drop back at the level's start, ready to try again. */
+function resetDrop(world) {
+  world.drop.x = world.parsed.start.x;
+  world.drop.y = world.parsed.start.y;
+  world.drop.vx = 0;
+  world.drop.vy = 0;
+  world.invulnerable = INVULNERABLE_SECONDS;
+  world.portalCooldown = 0;
+}
+
+/** Load a level by index and put the drop at its start. */
+function loadLevel(world, index) {
+  world.levelIndex = index;
+  world.level = LEVELS[index];
+  world.parsed = parseLevel(world.level);
+  world.gravity = { ...GRAVITY_DIRECTIONS.down };
+  world.gravityName = 'down';
+  world.rotationsUsed = 0;
+  world.elapsed = 0;
+  world.sparklesTaken = 0;
+  world.flowerOpen = false;
+  world.cleared = false;
+  resetDrop(world);
+}
+
+/** Point gravity a new way. A change of direction counts as one rotation. */
+function setGravity(world, name) {
+  if (!GRAVITY_DIRECTIONS[name] || name === world.gravityName) return false;
+  world.gravity = { ...GRAVITY_DIRECTIONS[name] };
+  world.gravityName = name;
+  world.rotationsUsed += 1;
+  return true;
+}
+
+/** Gravity one quarter-turn clockwise from where it points now. */
+function rotateGravity(world) {
+  const order = ['down', 'left', 'up', 'right'];
+  const next = order[(order.indexOf(world.gravityName) + 1) % order.length];
+  return setGravity(world, next);
+}
+
+function isWall(world, col, row) {
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return true;
+  return world.parsed.walls.has(`${col},${row}`);
+}
+
+/** Push a circle out of the wall tiles it overlaps; stop its motion into them. */
+function collideWalls(world) {
+  const drop = world.drop;
+  const left = Math.floor((drop.x - DROP_RADIUS) / TILE);
+  const right = Math.floor((drop.x + DROP_RADIUS) / TILE);
+  const top = Math.floor((drop.y - DROP_RADIUS) / TILE);
+  const bottom = Math.floor((drop.y + DROP_RADIUS) / TILE);
+  for (let row = top; row <= bottom; row += 1) {
+    for (let col = left; col <= right; col += 1) {
+      if (!isWall(world, col, row)) continue;
+      const tileX = col * TILE;
+      const tileY = row * TILE;
+      const nearX = Math.max(tileX, Math.min(drop.x, tileX + TILE));
+      const nearY = Math.max(tileY, Math.min(drop.y, tileY + TILE));
+      const dx = drop.x - nearX;
+      const dy = drop.y - nearY;
+      const distance = Math.hypot(dx, dy);
+      if (distance >= DROP_RADIUS) continue;
+      if (distance === 0) {
+        // Centred inside a tile: shove it out along the shorter side.
+        const pushLeft = drop.x - tileX;
+        const pushRight = tileX + TILE - drop.x;
+        const pushUp = drop.y - tileY;
+        const pushDown = tileY + TILE - drop.y;
+        const smallest = Math.min(pushLeft, pushRight, pushUp, pushDown);
+        if (smallest === pushLeft) { drop.x = tileX - DROP_RADIUS; drop.vx = Math.min(0, drop.vx); }
+        else if (smallest === pushRight) { drop.x = tileX + TILE + DROP_RADIUS; drop.vx = Math.max(0, drop.vx); }
+        else if (smallest === pushUp) { drop.y = tileY - DROP_RADIUS; drop.vy = Math.min(0, drop.vy); }
+        else { drop.y = tileY + TILE + DROP_RADIUS; drop.vy = Math.max(0, drop.vy); }
+        continue;
+      }
+      const push = (DROP_RADIUS - distance) / distance;
+      drop.x += dx * push;
+      drop.y += dy * push;
+      // Kill the part of the velocity that points into the wall.
+      const intoWall = (drop.vx * dx + drop.vy * dy) / distance;
+      if (intoWall < 0) {
+        drop.vx -= (dx / distance) * intoWall;
+        drop.vy -= (dy / distance) * intoWall;
+      }
+    }
+  }
+}
+
+/** Losing a life: one less drop, back to the start, or the run is over. */
+function loseLife(world, events) {
+  world.lives -= 1;
+  events.push({ kind: EVENT_HIT, lives: world.lives });
+  if (world.lives <= 0) {
+    world.over = true;
+    events.push({ kind: EVENT_GAME_OVER, score: world.score });
+    return;
+  }
+  resetDrop(world);
+}
+
+/**
+ * Advance the world by `dt` seconds. Returns the events this step caused:
+ * sparkles collected, the flower opening, a life lost, a portal crossed,
+ * a level cleared, the game won or the run ended.
+ */
+function stepWorld(world, dt) {
+  const events = [];
+  if (world.cleared || world.over || world.won) return events;
+  world.elapsed += dt;
+  if (world.invulnerable > 0) world.invulnerable -= dt;
+  if (world.portalCooldown > 0) world.portalCooldown -= dt;
+
+  // Beetles walk their run and turn at its ends.
+  for (const beetle of world.parsed.beetles) {
+    if (beetle.axis === 'x') {
+      beetle.x += beetle.dir * BEETLE_SPEED * dt;
+      if (beetle.x >= beetle.max) { beetle.x = beetle.max; beetle.dir = -1; }
+      if (beetle.x <= beetle.min) { beetle.x = beetle.min; beetle.dir = 1; }
+    } else {
+      beetle.y += beetle.dir * BEETLE_SPEED * dt;
+      if (beetle.y >= beetle.max) { beetle.y = beetle.max; beetle.dir = -1; }
+      if (beetle.y <= beetle.min) { beetle.y = beetle.min; beetle.dir = 1; }
+    }
+  }
+
+  // Gravity pulls, the drop slides, the walls stop it. Move in small hops
+  // so a fast drop never tunnels through a thin hedge.
+  const drop = world.drop;
+  drop.vx += world.gravity.x * GRAVITY * dt;
+  drop.vy += world.gravity.y * GRAVITY * dt;
+  const speed = Math.hypot(drop.vx, drop.vy);
+  if (speed > MAX_SPEED) {
+    drop.vx = (drop.vx / speed) * MAX_SPEED;
+    drop.vy = (drop.vy / speed) * MAX_SPEED;
+  }
+  const hops = Math.max(1, Math.ceil((Math.abs(drop.vx) + Math.abs(drop.vy)) * dt / 4));
+  for (let hop = 0; hop < hops; hop += 1) {
+    drop.x += (drop.vx * dt) / hops;
+    drop.y += (drop.vy * dt) / hops;
+    collideWalls(world);
+  }
+
+  // Sparkles: close enough and they are gathered.
+  for (const sparkle of world.parsed.sparkles) {
+    if (sparkle.taken) continue;
+    if (Math.hypot(drop.x - sparkle.x, drop.y - sparkle.y) < DROP_RADIUS + 12) {
+      sparkle.taken = true;
+      world.sparklesTaken += 1;
+      world.score += SPARKLE_POINTS;
+      events.push({ kind: EVENT_COLLECT, score: world.score, taken: world.sparklesTaken, total: world.parsed.sparkles.length });
+      if (world.sparklesTaken === world.parsed.sparkles.length) {
+        world.flowerOpen = true;
+        events.push({ kind: EVENT_FLOWER_OPEN });
+      }
+    }
+  }
+
+  // The flower, once open, ends the level — and the game on the last one.
+  if (world.flowerOpen) {
+    const flower = world.parsed.flower;
+    if (Math.hypot(drop.x - flower.x, drop.y - flower.y) < DROP_RADIUS + 16) {
+      const timeBonus = Math.max(0, Math.round(world.level.parTime - world.elapsed)) * TIME_BONUS_PER_SECOND;
+      const rotationBonus = Math.max(0, world.level.parRotations - world.rotationsUsed) * ROTATION_BONUS;
+      const levelBonus = LEVEL_CLEAR_POINTS + timeBonus + rotationBonus;
+      world.score += levelBonus;
+      world.cleared = true;
+      if (world.levelIndex >= LEVELS.length - 1) {
+        world.score += world.lives * VICTORY_LIFE_BONUS;
+        world.won = true;
+        events.push({ kind: EVENT_VICTORY, score: world.score, levelBonus, timeBonus, rotationBonus });
+      } else {
+        events.push({ kind: EVENT_LEVEL_CLEAR, score: world.score, levelBonus, timeBonus, rotationBonus });
+      }
+      return events;
+    }
+  }
+
+  // Portals: step into one ring, come out the other, briefly immune to both.
+  if (world.portalCooldown <= 0 && world.parsed.portals.A && world.parsed.portals.B) {
+    const near = (portal) => Math.hypot(drop.x - portal.x, drop.y - portal.y) < DROP_RADIUS + 10;
+    if (near(world.parsed.portals.A)) {
+      drop.x = world.parsed.portals.B.x;
+      drop.y = world.parsed.portals.B.y;
+      world.portalCooldown = PORTAL_COOLDOWN;
+      events.push({ kind: EVENT_PORTAL });
+    } else if (near(world.parsed.portals.B)) {
+      drop.x = world.parsed.portals.A.x;
+      drop.y = world.parsed.portals.A.y;
+      world.portalCooldown = PORTAL_COOLDOWN;
+      events.push({ kind: EVENT_PORTAL });
+    }
+  }
+
+  // Hazards, only while the drop is not flashing back from a sting.
+  if (world.invulnerable <= 0) {
+    for (const thorn of world.parsed.thorns) {
+      const inset = 10;
+      if (
+        drop.x + DROP_RADIUS - inset > thorn.x &&
+        drop.x - DROP_RADIUS + inset < thorn.x + TILE &&
+        drop.y + DROP_RADIUS - inset > thorn.y &&
+        drop.y - DROP_RADIUS + inset < thorn.y + TILE
+      ) {
+        loseLife(world, events);
+        return events;
+      }
+    }
+    for (const beetle of world.parsed.beetles) {
+      const half = BEETLE_SIZE / 2;
+      if (
+        Math.abs(drop.x - beetle.x) < DROP_RADIUS + half - 4 &&
+        Math.abs(drop.y - beetle.y) < DROP_RADIUS + half - 4
+      ) {
+        loseLife(world, events);
+        return events;
+      }
+    }
+  }
+  return events;
+}
+
+// ===== render.js =====
+
+// Dewdrop Garden: drawing. One canvas, one palette: the garden, the drop,
+// the sparkles and thorns, the beetles and the flower, and the screens that
+// frame a run — title, level clear, game over and victory. The header with
+// the score and lives lives in the page; everything the screenshots show of
+// the game itself is drawn here.
+
+
+const SCREEN_TITLE = 'title';
+const SCREEN_PLAY = 'play';
+const SCREEN_LEVEL = 'level';
+const SCREEN_OVER = 'over';
+const SCREEN_WIN = 'win';
+
+const particles = [];
+
+/** A burst of light where something happened: a sparkle, a sting, a ring. */
+function spawnBurst(x, y, color, count) {
+  for (let index = 0; index < count; index += 1) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 40 + Math.random() * 140;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 40,
+      life: 0.5 + Math.random() * 0.4,
+      age: 0,
+      color,
+      size: 2 + Math.random() * 3,
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let index = particles.length - 1; index >= 0; index -= 1) {
+    const particle = particles[index];
+    particle.age += dt;
+    particle.x += particle.vx * dt;
+    particle.y += particle.vy * dt;
+    particle.vy += 160 * dt;
+    if (particle.age >= particle.life) particles.splice(index, 1);
+  }
+}
+
+function drawParticles(ctx) {
+  for (const particle of particles) {
+    const fade = 1 - particle.age / particle.life;
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = particle.color;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, particle.size * fade + 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** The garden floor: a deep green with soft light and drifting spores. */
+function drawBackground(ctx, now) {
+  const gradient = ctx.createLinearGradient(0, 0, 0, FIELD_HEIGHT);
+  gradient.addColorStop(0, '#0e2418');
+  gradient.addColorStop(0.6, '#123322');
+  gradient.addColorStop(1, '#0a1c12');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
+  ctx.fillStyle = 'rgba(255, 209, 102, 0.05)';
+  for (let index = 0; index < 5; index += 1) {
+    const x = ((index * 173 + 60) % FIELD_WIDTH);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x + 90, 0);
+    ctx.lineTo(x + 30, FIELD_HEIGHT);
+    ctx.lineTo(x - 60, FIELD_HEIGHT);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(234, 246, 227, 0.35)';
+  for (let index = 0; index < 24; index += 1) {
+    const x = (index * 97 + 31) % FIELD_WIDTH;
+    const y = (index * 61 + ((now * 12 + index * 37) % FIELD_HEIGHT)) % FIELD_HEIGHT;
+    ctx.globalAlpha = 0.12 + 0.1 * Math.sin(now + index);
+    ctx.beginPath();
+    ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** A hedge block: mossy green with a lighter top and a few leaves. */
+function drawWall(ctx, col, row) {
+  const x = col * TILE;
+  const y = row * TILE;
+  ctx.fillStyle = PALETTE.leafDark;
+  ctx.fillRect(x, y, TILE, TILE);
+  ctx.fillStyle = PALETTE.leaf;
+  ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
+  ctx.fillStyle = PALETTE.moss;
+  ctx.fillRect(x + 2, y + 2, TILE - 4, 8);
+  ctx.fillStyle = 'rgba(234, 246, 227, 0.25)';
+  ctx.beginPath();
+  ctx.arc(x + 12, y + 16, 4, 0, Math.PI * 2);
+  ctx.arc(x + 34, y + 30, 5, 0, Math.PI * 2);
+  ctx.arc(x + 26, y + 12, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** A sparkle: a four-point star that breathes with the light. */
+function drawSparkle(ctx, sparkle, now) {
+  const pulse = 1 + 0.18 * Math.sin(now * 3 + sparkle.x);
+  const size = 11 * pulse;
+  ctx.save();
+  ctx.translate(sparkle.x, sparkle.y);
+  ctx.shadowColor = PALETTE.spark;
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = PALETTE.spark;
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.quadraticCurveTo(size * 0.25, -size * 0.25, size, 0);
+  ctx.quadraticCurveTo(size * 0.25, size * 0.25, 0, size);
+  ctx.quadraticCurveTo(-size * 0.25, size * 0.25, -size, 0);
+  ctx.quadraticCurveTo(-size * 0.25, -size * 0.25, 0, -size);
+  ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = '#fffbe6';
+  ctx.beginPath();
+  ctx.arc(sparkle.x, sparkle.y, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** A thorn patch: three red spikes rising from the tile. */
+function drawThorn(ctx, thorn) {
+  ctx.fillStyle = PALETTE.thorn;
+  for (let index = 0; index < 3; index += 1) {
+    const x = thorn.x + 8 + index * 16;
+    ctx.beginPath();
+    ctx.moveTo(x - 7, thorn.y + TILE - 4);
+    ctx.lineTo(x, thorn.y + 12);
+    ctx.lineTo(x + 7, thorn.y + TILE - 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = '#7a2a12';
+  ctx.fillRect(thorn.x, thorn.y + TILE - 5, TILE, 5);
+}
+
+/** A beetle: a violet body with a shell line and two feelers. */
+function drawBeetle(ctx, beetle, now) {
+  const half = BEETLE_SIZE / 2;
+  const bob = Math.sin(now * 6 + beetle.x * 0.05) * 1.5;
+  ctx.save();
+  ctx.translate(beetle.x, beetle.y + bob);
+  ctx.fillStyle = '#2a1a4d';
+  ctx.strokeStyle = '#2a1a4d';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-half, -half + 4);
+  ctx.lineTo(-half - 7, -half - 4);
+  ctx.moveTo(half, -half + 4);
+  ctx.lineTo(half + 7, -half - 4);
+  ctx.stroke();
+  ctx.fillStyle = PALETTE.beetle;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, half + 2, half - 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#4c1d95';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -half + 2);
+  ctx.lineTo(0, half - 2);
+  ctx.stroke();
+  ctx.fillStyle = '#eaf6e3';
+  ctx.beginPath();
+  ctx.arc(-5, -half + 7, 2.4, 0, Math.PI * 2);
+  ctx.arc(5, -half + 7, 2.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A portal ring: a violet hoop with a turning dash, glowing softly. */
+function drawPortal(ctx, portal, now, label) {
+  ctx.save();
+  ctx.translate(portal.x, portal.y);
+  ctx.shadowColor = PALETTE.portal;
+  ctx.shadowBlur = 16;
+  ctx.strokeStyle = PALETTE.portal;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(0, 0, 17, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#e9d5ff';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([8, 10]);
+  ctx.lineDashOffset = -now * 24;
+  ctx.beginPath();
+  ctx.arc(0, 0, 17, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(192, 132, 252, 0.25)';
+  ctx.beginPath();
+  ctx.arc(0, 0, 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = PALETTE.ink;
+  ctx.font = 'bold 12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, 0, 0);
+  ctx.restore();
+}
+
+/** The flower: a closed bud until every sparkle is gathered, then in bloom. */
+function drawFlower(ctx, flower, open, now) {
+  ctx.save();
+  ctx.translate(flower.x, flower.y);
+  ctx.strokeStyle = PALETTE.leaf;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, 6);
+  ctx.quadraticCurveTo(4, 22, 0, TILE / 2 - 2);
+  ctx.stroke();
+  if (open) {
+    const sway = Math.sin(now * 2) * 0.08;
+    ctx.rotate(sway);
+    ctx.shadowColor = PALETTE.flowerOpen;
+    ctx.shadowBlur = 22;
+    ctx.fillStyle = PALETTE.flowerOpen;
+    for (let index = 0; index < 6; index += 1) {
+      ctx.save();
+      ctx.rotate((index * Math.PI) / 3);
+      ctx.beginPath();
+      ctx.ellipse(0, -14, 7, 13, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = PALETTE.accent;
+    ctx.beginPath();
+    ctx.arc(0, 0, 7, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = PALETTE.flower;
+    ctx.beginPath();
+    ctx.ellipse(0, -4, 8, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#d14d7e';
+    ctx.beginPath();
+    ctx.ellipse(0, -4, 4, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** The drop: a bead of water with a bright core and a short trail. */
+function drawDrop(ctx, drop, invulnerable, now, trail) {
+  for (let index = 0; index < trail.length; index += 1) {
+    const point = trail[index];
+    ctx.globalAlpha = (index / trail.length) * 0.25;
+    ctx.fillStyle = PALETTE.dew;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, DROP_RADIUS * (0.4 + 0.4 * (index / trail.length)), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (invulnerable > 0 && Math.floor(now * 10) % 2 === 0) return;
+  ctx.save();
+  ctx.translate(drop.x, drop.y);
+  ctx.shadowColor = PALETTE.dew;
+  ctx.shadowBlur = 18;
+  const gradient = ctx.createRadialGradient(-5, -6, 2, 0, 0, DROP_RADIUS + 2);
+  gradient.addColorStop(0, PALETTE.dewCore);
+  gradient.addColorStop(0.55, PALETTE.dew);
+  gradient.addColorStop(1, '#2b7fb8');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(0, 0, DROP_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.beginPath();
+  ctx.arc(-5, -6, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A dark panel with a title, a few lines and one prompt line — the screens. */
+function drawPanel(ctx, title, lines, promptText, titleColor) {
+  const width = 520;
+  const height = 150 + lines.length * 30;
+  const x = (FIELD_WIDTH - width) / 2;
+  const y = (FIELD_HEIGHT - height) / 2;
+  ctx.save();
+  ctx.fillStyle = 'rgba(6, 18, 11, 0.72)';
+  ctx.fillRect(0, 0, FIELD_WIDTH, FIELD_HEIGHT);
+  ctx.fillStyle = PALETTE.panel;
+  ctx.strokeStyle = PALETTE.panelEdge;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(x, y, width, height, 16);
+  ctx.fill();
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = titleColor || PALETTE.ink;
+  ctx.font = 'bold 34px Georgia, serif';
+  ctx.fillText(title, FIELD_WIDTH / 2, y + 48);
+  ctx.font = '16px system-ui, sans-serif';
+  ctx.fillStyle = PALETTE.ink;
+  lines.forEach((line, index) => {
+    ctx.fillText(line, FIELD_WIDTH / 2, y + 92 + index * 30);
+  });
+  ctx.fillStyle = PALETTE.accent;
+  ctx.font = 'bold 16px system-ui, sans-serif';
+  ctx.fillText(promptText, FIELD_WIDTH / 2, y + height - 34);
+  ctx.restore();
+}
+
+/**
+ * Draw one frame: the garden and its creatures, then the screen over it.
+ * `screen` is one of the SCREEN_* names; `detail` carries the numbers the
+ * panel shows (score lines, level name and hint, best score).
+ */
+function drawScene(ctx, world, screen, detail, now) {
+  updateParticles(1 / 60);
+  drawBackground(ctx, now);
+  const parsed = world.parsed;
+  parsed.walls.forEach((key) => {
+    const [col, row] = key.split(',').map(Number);
+    drawWall(ctx, col, row);
+  });
+  if (parsed.portals.A) drawPortal(ctx, parsed.portals.A, now, 'A');
+  if (parsed.portals.B) drawPortal(ctx, parsed.portals.B, now, 'B');
+  for (const sparkle of parsed.sparkles) {
+    if (!sparkle.taken) drawSparkle(ctx, sparkle, now);
+  }
+  for (const thorn of parsed.thorns) drawThorn(ctx, thorn);
+  for (const beetle of parsed.beetles) drawBeetle(ctx, beetle, now);
+  drawFlower(ctx, parsed.flower, world.flowerOpen, now);
+  drawDrop(ctx, world.drop, world.invulnerable, now, detail.trail || []);
+  drawParticles(ctx);
+
+  if (screen === SCREEN_TITLE) {
+    drawPanel(
+      ctx,
+      'Dewdrop Garden',
+      [
+        'A gravity garden puzzle — steer the drop, gather the light,',
+        'wake the flower. Arrow keys or the compass steer gravity.',
+        'Space turns it. Mind the thorns and the beetles.',
+        detail.best > 0 ? `Best garden so far: ${detail.best} points` : 'Eight gardens wait. The first one is gentle.',
+      ],
+      'Press Enter or click Begin',
+      PALETTE.accent,
+    );
+  } else if (screen === SCREEN_LEVEL) {
+    drawPanel(
+      ctx,
+      `Garden ${detail.levelNumber} — ${detail.levelName}`,
+      [detail.hint, ...detail.lines],
+      'Press Enter for the next garden',
+      PALETTE.flowerOpen,
+    );
+  } else if (screen === SCREEN_OVER) {
+    drawPanel(
+      ctx,
+      'The garden fades…',
+      [`The last drop is lost among the thorns.`, `Score: ${detail.score} points`, `You reached garden ${detail.levelNumber} of ${detail.totalLevels}.`],
+      'Press R to try again',
+      PALETTE.thorn,
+    );
+  } else if (screen === SCREEN_WIN) {
+    drawPanel(
+      ctx,
+      'The Garden Blooms!',
+      [
+        `Every flower is awake. Final score: ${detail.score} points.`,
+        detail.best > 0 ? `Best garden so far: ${detail.best} points` : '',
+        'Three lives left would have been luck — this was skill.',
+      ].filter(Boolean),
+      'Press R to play again',
+      PALETTE.accent,
+    );
+  }
+}
+
+// ===== input.js =====
+
+// Dewdrop Garden: input. Keyboard and mouse both steer gravity: the arrow
+// keys (or WASD) point it, Space turns it a quarter-turn clockwise, R starts
+// a run over, Enter moves the screens on, M quiets the garden. The compass
+// buttons on the page call the same handlers, so a mouse plays the whole game.
+
+function createInput(handlers) {
+  const keys = new Set();
+
+  const directionKeys = {
+    ArrowDown: 'down', KeyS: 'down',
+    ArrowUp: 'up', KeyW: 'up',
+    ArrowLeft: 'left', KeyA: 'left',
+    ArrowRight: 'right', KeyD: 'right',
+  };
+
+  function onKeyDown(event) {
+    const direction = directionKeys[event.code];
+    if (direction) {
+      event.preventDefault();
+      if (!keys.has(event.code)) handlers.steer(direction);
+      keys.add(event.code);
+      return;
+    }
+    if (event.code === 'Space') {
+      event.preventDefault();
+      if (!event.repeat) handlers.rotate();
+    } else if (event.code === 'Enter') {
+      if (!event.repeat) handlers.advance();
+    } else if (event.code === 'KeyR') {
+      if (!event.repeat) handlers.restart();
+    } else if (event.code === 'KeyM') {
+      if (!event.repeat) handlers.mute();
+    }
+  }
+
+  function onKeyUp(event) {
+    keys.delete(event.code);
+  }
+
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+
+  return {
+    steer: handlers.steer,
+    rotate: handlers.rotate,
+    advance: handlers.advance,
+    restart: handlers.restart,
+    mute: handlers.mute,
+    /** The page's compass and buttons drive the same handlers. */
+    bindButton(element, action) {
+      element.addEventListener('click', () => handlers[action]());
+    },
+    destroy() {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    },
+  };
+}
+
+// ===== sound.js =====
+
+// Dewdrop Garden: sound. No audio files — every note is a small oscillator
+// through a gain envelope, made when the player first touches the game, so
+// the garden stays quiet until it is played.
+
+let audio = null;
+let muted = false;
+
+function ensureAudio() {
+  if (audio === null) {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return null;
+    audio = new AudioContext();
+  }
+  if (audio.state === 'suspended') audio.resume();
+  return audio;
+}
+
+function tone(frequency, seconds, type, volume, when = 0) {
+  if (muted) return;
+  const context = ensureAudio();
+  if (context === null) return;
+  const start = context.currentTime + when;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + seconds);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + seconds + 0.05);
+}
+
+/** A sparkle gathered: two bright notes, rising. */
+function playCollect() {
+  tone(880, 0.12, 'sine', 0.16);
+  tone(1318, 0.18, 'sine', 0.14, 0.07);
+}
+
+/** Gravity turned: a soft wooden click. */
+function playRotate() {
+  tone(320, 0.07, 'triangle', 0.12);
+}
+
+/** The flower opening: a short warm chord. */
+function playFlower() {
+  tone(523, 0.25, 'sine', 0.14);
+  tone(659, 0.25, 'sine', 0.12, 0.08);
+  tone(784, 0.35, 'sine', 0.12, 0.16);
+}
+
+/** A sting: a low buzz. */
+function playHit() {
+  tone(160, 0.22, 'sawtooth', 0.14);
+  tone(110, 0.3, 'sawtooth', 0.1, 0.05);
+}
+
+/** A level cleared: a rising arpeggio. */
+function playLevelClear() {
+  [523, 659, 784, 1046].forEach((frequency, index) => {
+    tone(frequency, 0.28, 'sine', 0.14, index * 0.09);
+  });
+}
+
+/** The garden won: the whole scale, slowly. */
+function playVictory() {
+  [523, 587, 659, 784, 880, 1046, 1318].forEach((frequency, index) => {
+    tone(frequency, 0.4, 'sine', 0.13, index * 0.11);
+  });
+}
+
+/** The run ended: three notes falling. */
+function playGameOver() {
+  [392, 330, 262].forEach((frequency, index) => {
+    tone(frequency, 0.35, 'triangle', 0.13, index * 0.14);
+  });
+}
+
+/** A portal crossed: a quick shimmer up and down. */
+function playPortal() {
+  tone(660, 0.1, 'sine', 0.12);
+  tone(990, 0.14, 'sine', 0.1, 0.06);
+}
+
+/** Flip the garden quiet or sounding; returns the new state. */
+function toggleMute() {
+  muted = !muted;
+  return muted;
+}
+
+function isMuted() {
+  return muted;
+}
+
+// ===== shots.js =====
+
+// Dewdrop Garden: the screenshot scenes behind ?shot=start|play|win|end.
+// Each one plays the real rules forward from a fresh world for a fixed
+// stretch, steered by a small autopilot that finds its way across the grid,
+// so the frame is what a short game really looks like and the same seed
+// always gives the same frame.
+
+
+const SHOT_STEP = 1 / 60;
+const START_SECONDS = 5;
+const PLAY_SECONDS = 18;
+const WIN_LIMIT_SECONDS = 120;
+const END_LIMIT_SECONDS = 120;
+
+/** Is this tile open ground for the drop (a wall, or a thorn to avoid)? */
+function passable(world, col, row, avoidThorns) {
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
+  if (world.parsed.walls.has(`${col},${row}`)) return false;
+  if (avoidThorns && world.parsed.thorns.some((thorn) => thorn.col === col && thorn.row === row)) return false;
+  return true;
+}
+
+/**
+ * Breadth-first search across the open tiles, from the drop to a target.
+ * Returns the first step of the shortest path as a gravity direction.
+ */
+function firstStep(world, fromCol, fromRow, toCol, toRow, avoidThorns) {
+  if (fromCol === toCol && fromRow === toRow) return null;
+  const seen = new Set([`${fromCol},${fromRow}`]);
+  const queue = [[fromCol, fromRow, null]];
+  const steps = [
+    { name: 'down', dc: 0, dr: 1 },
+    { name: 'up', dc: 0, dr: -1 },
+    { name: 'left', dc: -1, dr: 0 },
+    { name: 'right', dc: 1, dr: 0 },
+  ];
+  while (queue.length > 0) {
+    const [col, row, first] = queue.shift();
+    for (const step of steps) {
+      const nextCol = col + step.dc;
+      const nextRow = row + step.dr;
+      const key = `${nextCol},${nextRow}`;
+      if (seen.has(key) || !passable(world, nextCol, nextRow, avoidThorns)) continue;
+      seen.add(key);
+      const firstStepName = first === null ? step.name : first;
+      if (nextCol === toCol && nextRow === toRow) return firstStepName;
+      queue.push([nextCol, nextRow, firstStepName]);
+    }
+  }
+  return null;
+}
+
+/** The nearest sparkle still shining, or the flower once they are all taken. */
+function currentTarget(world) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const sparkle of world.parsed.sparkles) {
+    if (sparkle.taken) continue;
+    const distance = Math.abs(sparkle.x - world.drop.x) + Math.abs(sparkle.y - world.drop.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = sparkle;
+    }
+  }
+  if (best !== null) return best;
+  return world.parsed.flower;
+}
+
+/**
+ * Steer the drop toward its target. Re-plans whenever the drop enters a new
+ * tile, and whenever it has been still for a while (it is stuck on a wall).
+ */
+function autopilot(world, avoidThorns, state) {
+  const col = Math.floor(world.drop.x / TILE);
+  const row = Math.floor(world.drop.y / TILE);
+  const still = Math.hypot(world.drop.vx, world.drop.vy) < 12;
+  if (still) state.stillTime += SHOT_STEP;
+  else state.stillTime = 0;
+  if ((col !== state.col || row !== state.row || state.stillTime > 0.6) && state.replanAt <= state.time) {
+    state.col = col;
+    state.row = row;
+    state.replanAt = state.time + 0.2;
+    const target = currentTarget(world);
+    const targetCol = Math.floor(target.x / TILE);
+    const targetRow = Math.floor(target.y / TILE);
+    const direction = firstStep(world, col, row, targetCol, targetRow, avoidThorns);
+    if (direction !== null) setGravity(world, direction);
+    else if (state.stillTime > 0.6) {
+      // No path and no motion: try a fresh direction to slide free.
+      const order = ['down', 'left', 'up', 'right'];
+      setGravity(world, order[Math.floor(state.time) % order.length]);
+      state.stillTime = 0;
+    }
+  }
+}
+
+/** A careless pilot: it walks the shortest path and ignores the thorns on it. */
+function carelessPilot(world, state, random) {
+  if (state.replanAt <= state.time) {
+    state.replanAt = state.time + 0.35;
+    const target = currentTarget(world);
+    const col = Math.floor(world.drop.x / TILE);
+    const row = Math.floor(world.drop.y / TILE);
+    const direction = firstStep(world, col, row, Math.floor(target.x / TILE), Math.floor(target.y / TILE), false);
+    if (direction !== null && random() < 0.7) setGravity(world, direction);
+    else {
+      const order = ['down', 'left', 'up', 'right'];
+      setGravity(world, order[Math.floor(random() * order.length)]);
+    }
+  }
+}
+
+/**
+ * Set `world` to the named scene (start, play, win or end; any other name is
+ * start) and return the screen to draw over it and the numbers its panel shows.
+ */
+function stageShot(name, world, seed = 1) {
+  const random = mulberry32(seed);
+  if (name === 'play') {
+    // The long way through the tall grass: stop the moment the first
+    // sparkle is gathered, so the frame is mid-garden, not nearly done.
+    loadLevel(world, 5);
+    const state = { col: -1, row: -1, stillTime: 0, replanAt: 0, time: 0 };
+    for (let step = 0; step < PLAY_SECONDS / SHOT_STEP; step += 1) {
+      state.time = step * SHOT_STEP;
+      autopilot(world, true, state);
+      stepWorld(world, SHOT_STEP);
+      if (world.sparklesTaken >= 1 || world.cleared || world.over) break;
+    }
+    return { screen: SCREEN_PLAY, best: 0, score: world.score };
+  }
+  if (name === 'win') {
+    loadLevel(world, 0);
+    const state = { col: -1, row: -1, stillTime: 0, replanAt: 0, time: 0 };
+    let clear = null;
+    for (let step = 0; step < WIN_LIMIT_SECONDS / SHOT_STEP; step += 1) {
+      state.time = step * SHOT_STEP;
+      autopilot(world, true, state);
+      const events = stepWorld(world, SHOT_STEP);
+      for (const event of events) {
+        if (event.kind === EVENT_LEVEL_CLEAR || event.kind === EVENT_VICTORY) clear = event;
+      }
+      if (world.cleared || world.over) break;
+    }
+    return {
+      screen: SCREEN_LEVEL,
+      best: 0,
+      score: world.score,
+      levelNumber: 1,
+      levelName: LEVELS[0].name,
+      hint: LEVELS[0].hint,
+      lines: clear
+        ? [
+            `Sparkles gathered: ${world.parsed.sparkles.length} of ${world.parsed.sparkles.length}`,
+            `Level bonus: ${clear.levelBonus} points (clear ${clear.levelBonus - clear.timeBonus - clear.rotationBonus} + time ${clear.timeBonus} + steady hands ${clear.rotationBonus})`,
+            `Score so far: ${world.score} points`,
+          ]
+        : ['The drop found the flower.'],
+    };
+  }
+  if (name === 'end') {
+    loadLevel(world, 6);
+    world.lives = 1;
+    const state = { replanAt: 0, time: 0 };
+    for (let step = 0; step < END_LIMIT_SECONDS / SHOT_STEP; step += 1) {
+      state.time = step * SHOT_STEP;
+      carelessPilot(world, state, random);
+      const events = stepWorld(world, SHOT_STEP);
+      if (events.some((event) => event.kind === EVENT_GAME_OVER)) break;
+      if (world.over) break;
+    }
+    return {
+      screen: SCREEN_OVER,
+      best: 0,
+      score: world.score,
+      levelNumber: world.levelIndex + 1,
+      totalLevels: LEVELS.length,
+    };
+  }
+  // Start: a fresh garden, the drop settled, the title over it.
+  loadLevel(world, 0);
+  for (let step = 0; step < START_SECONDS / SHOT_STEP; step += 1) {
+    stepWorld(world, SHOT_STEP);
+  }
+  return { screen: SCREEN_TITLE, best: 0, score: 0 };
+}
+
+/** A world for the screenshots to start from, so staging never touches a live run. */
+function createShotWorld() {
+  return createWorld();
+}
+
+// ===== main.js =====
+
+// Dewdrop Garden: the loop. One requestAnimationFrame loop drives the world
+// at a fixed step, turns its events into sound and light, moves the screens
+// along, and keeps the page's header honest. A ?shot= address stages one
+// screenshot scene instead of starting a run.
+
+
+const STEP = 1 / 60;
+const BEST_KEY = 'dewdrop-garden-best';
+
+const canvas = document.getElementById('game');
+const context = canvas.getContext('2d');
+canvas.width = FIELD_WIDTH;
+canvas.height = FIELD_HEIGHT;
+
+const hud = {
+  level: document.getElementById('hud-level'),
+  score: document.getElementById('hud-score'),
+  lives: document.getElementById('hud-lives'),
+  sparkles: document.getElementById('hud-sparkles'),
+  rotations: document.getElementById('hud-rotations'),
+  time: document.getElementById('hud-time'),
+  hint: document.getElementById('hud-hint'),
+};
+const muteButton = document.getElementById('mute-button');
+const beginButton = document.getElementById('begin-button');
+
+function readBest() {
+  try {
+    const value = Number(window.localStorage.getItem(BEST_KEY));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveBest(score) {
+  try {
+    window.localStorage.setItem(BEST_KEY, String(score));
+  } catch {
+    // A garden that cannot remember is still a garden.
+  }
+}
+
+const world = createWorld();
+let screen = SCREEN_TITLE;
+let best = readBest();
+let detail = { best, trail: [] };
+let trail = [];
+let lastTime = 0;
+let accumulator = 0;
+let shotFrozen = false;
+
+function formatTime(seconds) {
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
+function refreshHud() {
+  hud.level.textContent = `Garden ${world.levelIndex + 1} of ${LEVELS.length} — ${world.level.name}`;
+  hud.score.textContent = `Score ${world.score}`;
+  hud.lives.textContent = `Lives ${'♥'.repeat(Math.max(0, world.lives))}${'○'.repeat(Math.max(0, 3 - world.lives))}`;
+  hud.sparkles.textContent = `Sparkles ${world.sparklesTaken}/${world.parsed.sparkles.length}${world.flowerOpen ? ' · flower open' : ''}`;
+  hud.rotations.textContent = `Turns ${world.rotationsUsed}`;
+  hud.time.textContent = formatTime(world.elapsed);
+  hud.hint.textContent = world.level.hint;
+}
+
+function handleEvents(events) {
+  for (const event of events) {
+    if (event.kind === EVENT_COLLECT) {
+      playCollect();
+      spawnBurst(world.drop.x, world.drop.y, '#ffe066', 10);
+    } else if (event.kind === EVENT_FLOWER_OPEN) {
+      playFlower();
+      spawnBurst(world.parsed.flower.x, world.parsed.flower.y, '#ffb3c8', 16);
+    } else if (event.kind === EVENT_PORTAL) {
+      playPortal();
+      spawnBurst(world.drop.x, world.drop.y, '#c084fc', 12);
+    } else if (event.kind === EVENT_HIT) {
+      playHit();
+      spawnBurst(world.drop.x, world.drop.y, '#e4572e', 14);
+    } else if (event.kind === EVENT_LEVEL_CLEAR) {
+      playLevelClear();
+      screen = SCREEN_LEVEL;
+      detail = {
+        best,
+        trail,
+        levelNumber: world.levelIndex + 1,
+        levelName: world.level.name,
+        hint: world.level.hint,
+        lines: [
+          `Sparkles gathered: ${world.parsed.sparkles.length} of ${world.parsed.sparkles.length}`,
+          `Level bonus: ${event.levelBonus} points (clear ${event.levelBonus - event.timeBonus - event.rotationBonus} + time ${event.timeBonus} + steady hands ${event.rotationBonus})`,
+          `Score so far: ${world.score} points`,
+        ],
+      };
+    } else if (event.kind === EVENT_VICTORY) {
+      playVictory();
+      if (world.score > best) {
+        best = world.score;
+        saveBest(best);
+      }
+      screen = SCREEN_WIN;
+      detail = { best, trail, score: world.score };
+    } else if (event.kind === EVENT_GAME_OVER) {
+      playGameOver();
+      screen = SCREEN_OVER;
+      detail = { best, trail, score: world.score, levelNumber: world.levelIndex + 1, totalLevels: LEVELS.length };
+    }
+  }
+}
+
+function beginRun() {
+  const fresh = createWorld();
+  Object.assign(world, fresh);
+  loadLevel(world, 0);
+  trail = [];
+  screen = SCREEN_PLAY;
+  detail = { best, trail };
+  refreshHud();
+}
+
+function nextLevel() {
+  const next = world.levelIndex + 1;
+  if (next >= LEVELS.length) {
+    beginRun();
+    return;
+  }
+  loadLevel(world, next);
+  trail = [];
+  screen = SCREEN_PLAY;
+  detail = { best, trail };
+  refreshHud();
+}
+
+const input = createInput({
+  steer(direction) {
+    if (screen !== SCREEN_PLAY) return;
+    if (setGravity(world, direction)) playRotate();
+    refreshHud();
+  },
+  rotate() {
+    if (screen !== SCREEN_PLAY) return;
+    if (rotateGravity(world)) playRotate();
+    refreshHud();
+  },
+  advance() {
+    if (screen === SCREEN_TITLE) beginRun();
+    else if (screen === SCREEN_LEVEL) nextLevel();
+    else if (screen === SCREEN_OVER || screen === SCREEN_WIN) beginRun();
+  },
+  restart() {
+    beginRun();
+  },
+  mute() {
+    const muted = toggleMute();
+    muteButton.textContent = muted ? 'Sound off' : 'Sound on';
+  },
+});
+
+// The compass and the buttons on the page steer the same handlers.
+document.querySelectorAll('[data-steer]').forEach((element) => {
+  element.addEventListener('click', () => {
+    if (screen === SCREEN_PLAY && setGravity(world, element.dataset.steer)) playRotate();
+    refreshHud();
+  });
+});
+document.getElementById('rotate-button').addEventListener('click', () => input.rotate());
+document.getElementById('restart-button').addEventListener('click', () => input.restart());
+muteButton.addEventListener('click', () => input.mute());
+beginButton.addEventListener('click', () => input.advance());
+
+function frame(time) {
+  const now = time / 1000;
+  const elapsed = Math.min(0.1, (time - lastTime) / 1000 || 0);
+  lastTime = time;
+  if (!shotFrozen) {
+    accumulator += elapsed;
+    while (accumulator >= STEP) {
+      accumulator -= STEP;
+      if (screen === SCREEN_PLAY) {
+        const events = stepWorld(world, STEP);
+        handleEvents(events);
+        trail.push({ x: world.drop.x, y: world.drop.y });
+        if (trail.length > 12) trail.shift();
+      } else if (screen === SCREEN_TITLE) {
+        // The garden idles behind the title: the drop rests at the bottom.
+        stepWorld(world, STEP);
+        trail.push({ x: world.drop.x, y: world.drop.y });
+        if (trail.length > 12) trail.shift();
+      }
+    }
+  }
+  detail.trail = trail;
+  drawScene(context, world, screen, detail, now);
+  refreshHud();
+  window.requestAnimationFrame(frame);
+}
+
+// A screenshot address stages one scene and holds it still.
+const query = new URLSearchParams(window.location.search);
+const shot = query.get('shot');
+if (shot !== null) {
+  const seed = Number(query.get('seed') || '1');
+  const staged = stageShot(shot, world, seed);
+  screen = staged.screen;
+  detail = { ...staged, trail: [] };
+  shotFrozen = true;
+  refreshHud();
+} else {
+  loadLevel(world, 0);
+  refreshHud();
+}
+
+window.requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
