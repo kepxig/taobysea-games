@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <meta name="color-scheme" content="dark" />
     <link rel="icon" href="data:," />
-    <title>Port Solano</title>
+    <title>Port Solano · 索拉诺港</title>
     <style>
       * { box-sizing: border-box; }
       html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0d1a; }
@@ -56,6 +56,22 @@
         position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
         z-index: 10; border-radius: 999px; min-width: 64px; min-height: 40px; font-size: 13px; letter-spacing: 0.04em;
       }
+      .lang-btn {
+        position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+        z-index: 20; display: flex; align-items: center; justify-content: center; gap: 2px;
+        min-height: 40px; padding: 0 16px; border-radius: 999px;
+        border: 1.5px solid rgba(255,255,255,0.45); background: rgba(8, 8, 20, 0.62);
+        color: #fff; font-weight: 700; font-size: 14px; line-height: 1;
+        user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; cursor: pointer;
+      }
+      .lang-btn:active { background: rgba(255, 204, 0, 0.55); color: #111; }
+      .lang-btn:focus-visible { outline: 2px solid #ffcc00; outline-offset: 2px; }
+      @media (max-width: 560px) {
+        .lang-btn { left: 14px; right: auto; transform: none; top: calc(134px + env(safe-area-inset-top)); }
+      }
+      @media (pointer: coarse) and (min-width: 561px) {
+        .pause-btn { top: calc(60px + env(safe-area-inset-top)); }
+      }
       /* On narrow screens the HUD panel and minimap fill the top corners:
          park the pause button under the minimap instead of over the clock. */
       @media (max-width: 560px) {
@@ -66,6 +82,7 @@
   <body>
     <canvas id="game" aria-label="Port Solano：俯视开放世界犯罪游戏。开车、偷车、躲警察，完成三个剧情任务。"></canvas>
     <p id="status" role="status" aria-live="polite"></p>
+    <button type="button" class="lang-btn" id="btn-lang" aria-label="切换到中文"><b>EN</b>&nbsp;/&nbsp;<span style="opacity:.55">中文</span></button>
 
     <!-- Touch controls: direction pad (move / drive), action buttons -->
     <div class="touch-controls" aria-hidden="false">
@@ -77,19 +94,21 @@
       </div>
       <div class="actions">
         <div class="col">
-          <button type="button" class="tc-btn small" id="btn-reload" aria-label="换弹匣">R</button>
-          <button type="button" class="tc-btn" id="btn-punch" aria-label="拳击">拳</button>
+          <button type="button" class="tc-btn small" id="btn-reload" aria-label="Reload">R</button>
+          <button type="button" class="tc-btn" id="btn-punch" aria-label="Punch">Hit</button>
         </div>
         <div class="col">
-          <button type="button" class="tc-btn" id="btn-enter" aria-label="上车 / 下车">E</button>
-          <button type="button" class="tc-btn shoot" id="btn-shoot" aria-label="射击">射击</button>
+          <button type="button" class="tc-btn" id="btn-enter" aria-label="Enter / exit car">E</button>
+          <button type="button" class="tc-btn shoot" id="btn-shoot" aria-label="Shoot">Shoot</button>
         </div>
       </div>
-      <button type="button" class="tc-btn pause-btn" id="btn-pause" aria-label="暂停">❚❚ 暂停</button>
+      <button type="button" class="tc-btn pause-btn" id="btn-pause" aria-label="Pause">❚❚ Pause</button>
     </div>
 
 <script>
 'use strict';
+let LANG = 'en';
+function L(en, zh) { return LANG === 'zh' ? zh : en; }
 /* ============================================================
    Port Solano — top-down open-world crime game.
    The original multi-file ES-module source (game/src/*.js from
@@ -165,11 +184,11 @@ function buildCity(rng) {
   }
 
   const places = {
-    garage: { x: vRoads[1], y: hRoads[4], label: 'Rosa\u2019s Garage' },
-    bank: { x: vRoads[5], y: hRoads[1], label: 'Solano Bank' },
-    hideout: { x: vRoads[1], y: hRoads[1], label: 'Hideout' },
-    docks: { x: vRoads[6], y: hRoads[4], label: 'Docks' },
-    carMeet: { x: vRoads[3], y: hRoads[2], label: 'Car Meet' },
+    garage: { x: vRoads[1], y: hRoads[4], labelEn: 'Rosa’s Garage', labelZh: '罗莎的车库' },
+    bank: { x: vRoads[5], y: hRoads[1], labelEn: 'Solano Bank', labelZh: '索拉诺银行' },
+    hideout: { x: vRoads[1], y: hRoads[1], labelEn: 'Hideout', labelZh: '藏身处' },
+    docks: { x: vRoads[6], y: hRoads[4], labelEn: 'Docks', labelZh: '码头' },
+    carMeet: { x: vRoads[3], y: hRoads[2], labelEn: 'Car Meet', labelZh: '车友会' },
   };
   return { vRoads, hRoads, buildings, places };
 }
@@ -465,11 +484,17 @@ const CAR_TYPES = [
 ];
 const PED_COLORS = ['#e74c3c', '#3498db', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#ecf0f1', '#2ecc71'];
 
-const MISSIONS = [
+const MISSIONS_EN = [
   { name: 'Wheels for Rosa', brief: 'Rosa needs wheels. Steal the gold sportscar at the car meet, then bring it to her garage.' },
-  { name: 'Dockside Payback', brief: 'The Dock Rats jumped Rosa\u2019s courier. Go to the docks and settle it — all four of them.' },
+  { name: 'Dockside Payback', brief: 'The Dock Rats jumped Rosa’s courier. Go to the docks and settle it — all four of them.' },
   { name: 'The Solano Score', brief: 'Hit Solano Bank, grab the cash bag, then lose the heat and reach the hideout.' },
 ];
+const MISSIONS_ZH = [
+  { name: '给罗莎找辆车', brief: '罗莎需要一辆车。去车友会偷那辆金色跑车，然后开到她的车库。' },
+  { name: '码头复仇', brief: '码头帮袭击了罗莎的信使。去码头把他们四个都解决掉。' },
+  { name: '索拉诺大劫案', brief: '抢劫索拉诺银行，抢走现金袋，然后甩掉警察，回到藏身处。' },
+];
+let MISSIONS = MISSIONS_EN;
 
 function wdist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function wclamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -519,7 +544,7 @@ function createWorld(rng, audio) {
     if (state.wanted > before) {
       state.stats.crimes += 1;
       audio.wantedUp();
-      announce(`Wanted level ${state.wanted} — the police are coming!`, 2.5);
+      announce(LANG === 'zh' ? `通缉等级 ${state.wanted} —— 警察来了！` : `Wanted level ${state.wanted} — the police are coming!`, 2.5);
     }
   }
 
@@ -594,14 +619,14 @@ function createWorld(rng, audio) {
 
   function missionObjective() {
     const i = state.missionIndex;
-    if (i === 0) return state.missionStage === 0 ? 'Go to the car meet and steal the gold sportscar' : 'Deliver the sportscar to Rosa\u2019s Garage';
-    if (i === 1) return state.missionStage === 0 ? 'Go to the Docks' : `Take out the Dock Rats (${state.thugs.filter((t) => !t.dead).length} left)`;
+    if (i === 0) return state.missionStage === 0 ? L('Go to the car meet and steal the gold sportscar', '去车友会偷金色跑车') : L('Deliver the sportscar to Rosa’s Garage', '把跑车送到罗莎的车库');
+    if (i === 1) return state.missionStage === 0 ? L('Go to the Docks', '去码头') : (LANG === 'zh' ? `干掉码头帮（还剩 ${state.thugs.filter((t) => !t.dead).length} 人）` : `Take out the Dock Rats (${state.thugs.filter((t) => !t.dead).length} left)`);
     if (i === 2) {
-      if (state.missionStage === 0) return 'Go to Solano Bank';
-      if (state.missionStage === 1) return 'Grab the cash bag — then run!';
-      return 'Lose the heat and reach the Hideout';
+      if (state.missionStage === 0) return L('Go to Solano Bank', '去索拉诺银行');
+      if (state.missionStage === 1) return L('Grab the cash bag — then run!', '抢走现金袋——快跑！');
+      return L('Lose the heat and reach the Hideout', '甩掉警察，回到藏身处');
     }
-    return 'All missions complete — free roam. Have fun, Port Solano is yours.';
+    return L('All missions complete — free roam. Have fun, Port Solano is yours.', '所有任务完成——自由探索。这座城市是你的了，尽情玩吧。');
   }
 
   function startMissionStage() {
@@ -614,11 +639,11 @@ function createWorld(rng, audio) {
           angle: 0, speed: 60, hp: 100, dead: false, shootTimer: 1 + k * 0.5, color: '#c0392b',
         });
       }
-      announce('The Dock Rats are here — take them all out!', 3);
+      announce(L('The Dock Rats are here — take them all out!', '码头帮来了——把他们全干掉！'), 3);
     }
     if (i === 2 && state.missionStage === 1) {
       spawnPickup(city.places.bank.x + 40, city.places.bank.y + 40, 'cashbag');
-      announce('Grab the cash bag!', 3);
+      announce(L('Grab the cash bag!', '抢走现金袋！'), 3);
     }
   }
 
@@ -627,15 +652,15 @@ function createWorld(rng, audio) {
     state.money += reward;
     state.stats.missionsDone += 1;
     audio.missionDone();
-    announce(`Mission complete! +$${reward}`, 4);
+    announce(LANG === 'zh' ? `任务完成！+$${reward}` : `Mission complete! +$${reward}`, 4);
     state.missionIndex += 1;
     state.missionStage = 0;
     state.thugs = [];
     state.pickups = state.pickups.filter((p) => p.kind !== 'cashbag');
     if (state.missionIndex < MISSIONS.length) {
-      announce(`New mission: ${MISSIONS[state.missionIndex].name} — ${MISSIONS[state.missionIndex].brief}`, 5);
+      announce(LANG === 'zh' ? `新任务：${MISSIONS[state.missionIndex].name} —— ${MISSIONS[state.missionIndex].brief}` : `New mission: ${MISSIONS[state.missionIndex].name} — ${MISSIONS[state.missionIndex].brief}`, 5);
     } else {
-      announce('Story complete! Port Solano is yours — free roam.', 5);
+      announce(L('Story complete! Port Solano is yours — free roam.', '主线完成！索拉诺港是你的了——自由探索。'), 5);
     }
   }
 
@@ -671,7 +696,7 @@ function createWorld(rng, audio) {
     spawnPickup(1500, 1300, 'ammo');
     spawnPickup(2100, 900, 'ammo');
     spawnPickup(500, 1700, 'health');
-    announce(`Mission 1: ${MISSIONS[0].name} — ${MISSIONS[0].brief}`, 6);
+    announce(LANG === 'zh' ? `任务 1：${MISSIONS[0].name} —— ${MISSIONS[0].brief}` : `Mission 1: ${MISSIONS[0].name} — ${MISSIONS[0].brief}`, 6);
   }
 
   function nearestCar(x, y, maxD) {
@@ -694,11 +719,11 @@ function createWorld(rng, audio) {
     if (wasParked || wasTraffic) {
       state.stats.stolen += 1;
       addWanted(1);
-      announce(wasTraffic ? 'Carjacked! The driver ran off.' : 'Stole a parked car!', 2.5);
+      announce(wasTraffic ? L('Carjacked! The driver ran off.', '抢车成功！司机跑了。') : L('Stole a parked car!', '偷了一辆停着的车！'), 2.5);
     }
     if (car.targetCar && state.missionIndex === 0 && state.missionStage === 0) {
       state.missionStage = 1;
-      announce('Got the gold sportscar! Now deliver it to Rosa\u2019s Garage.', 4);
+      announce(L('Got the gold sportscar! Now deliver it to Rosa’s Garage.', '拿到金色跑车了！现在送到罗莎的车库。'), 4);
     }
   }
 
@@ -717,7 +742,7 @@ function createWorld(rng, audio) {
 
   function shootAt(fromX, fromY, targetX, targetY, from) {
     if (state.ammo <= 0) {
-      announce('Out of ammo — find an ammo pickup (green box).', 2);
+      announce(L('Out of ammo — find an ammo pickup (green box).', '没子弹了——找弹药补给（绿盒子）。'), 2);
       audio.click();
       return;
     }
@@ -775,7 +800,7 @@ function createWorld(rng, audio) {
     }
     if (actions & ACTION_RELOAD && state.ammo < 12 && p.reloadTimer <= 0) {
       p.reloadTimer = 0.8;
-      announce('Reloading…', 1);
+      announce(L('Reloading…', '正在换弹…'), 1);
     }
     if (p.car) {
       const car = p.car;
@@ -808,7 +833,7 @@ function createWorld(rng, audio) {
           burst(ped.x, ped.y, '#e74c3c', 12);
           audio.crash();
           addWanted(1);
-          announce('You ran someone over!', 2);
+          announce(L('You ran someone over!', '你撞到人了！'), 2);
         }
       }
       if (actions & ACTION_ENTER_CAR) exitCar();
@@ -989,7 +1014,7 @@ function createWorld(rng, audio) {
           state.health -= 9;
           burst(p.x, p.y, '#e74c3c', 6);
           audio.punch();
-          announce('A cop is beating you down!', 1.5);
+          announce(L('A cop is beating you down!', '警察正在揍你，快跑！'), 1.5);
         }
         if (cop.touchTime > 1.6) {
           state.over = 'busted';
@@ -1050,7 +1075,7 @@ function createWorld(rng, audio) {
             thug.hp -= 34;
             b.life = 0;
             burst(thug.x, thug.y, '#e74c3c', 8);
-            if (thug.hp <= 0) { thug.dead = true; burst(thug.x, thug.y, '#c0392b', 14); state.money += 20; announce('Dock Rat down! +$20', 1.5); }
+            if (thug.hp <= 0) { thug.dead = true; burst(thug.x, thug.y, '#c0392b', 14); state.money += 20; announce(L('Dock Rat down! +$20', '干掉一个码头帮！+$20'), 1.5); }
           }
         }
         for (const cop of state.cops) {
@@ -1082,10 +1107,10 @@ function createWorld(rng, audio) {
     for (const pk of state.pickups) {
       pk.bob += dt;
       if (Math.hypot(pk.x - p.x, pk.y - p.y) < 34) {
-        if (pk.kind === 'health') { state.health = Math.min(100, state.health + 40); announce('Health +40', 2); }
-        if (pk.kind === 'ammo') { state.ammo = 12; announce('Ammo refilled', 2); }
+        if (pk.kind === 'health') { state.health = Math.min(100, state.health + 40); announce(L('Health +40', '生命值 +40'), 2); }
+        if (pk.kind === 'ammo') { state.ammo = 12; announce(L('Ammo refilled', '弹药已补满'), 2); }
         if (pk.kind === 'cashbag') {
-          announce('Got the cash! Now reach the Hideout — the cops are coming!', 4);
+          announce(L('Got the cash! Now reach the Hideout — the cops are coming!', '拿到现金了！现在回藏身处——警察来了！'), 4);
           state.missionStage = 2;
           addWanted(3);
         }
@@ -1135,7 +1160,7 @@ function createWorld(rng, audio) {
       if (!nearCop && state.time - state.lastWantedDrop > 12) {
         state.wanted -= 1;
         state.lastWantedDrop = state.time;
-        if (state.wanted === 0) announce('You lost the cops. Heat is off.', 3);
+        if (state.wanted === 0) announce(L('You lost the cops. Heat is off.', '你甩掉警察了，通缉解除。'), 3);
       }
     }
     updatePlayer(dt, drive, actions, mouseWorld);
@@ -1248,7 +1273,7 @@ function drawCar(ctx, car) {
     ctx.fillStyle = '#111111';
     ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('POLICE', 0, 3);
+    ctx.fillText(L('POLICE', '警察'), 0, 3);
     ctx.fillStyle = '#ff0000';
     ctx.fillRect(-6, -car.wid / 2 - 1, 5, 4);
     ctx.fillStyle = '#0044ff';
@@ -1406,7 +1431,7 @@ function createRenderer(canvas) {
     for (const key of Object.keys(city.places)) {
       const pl = city.places[key];
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.fillText(pl.label, pl.x, pl.y - ROAD_W / 2 - 8);
+      ctx.fillText(L(pl.labelEn, pl.labelZh), pl.x, pl.y - ROAD_W / 2 - 8);
     }
 
     if (state.missionIndex < MISSIONS.length) {
@@ -1441,7 +1466,7 @@ function createRenderer(canvas) {
         ctx.fillRect(-11, -8, 22, 16);
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 10px sans-serif';
-        ctx.fillText('AMMO', 0, 4);
+        ctx.fillText(L('AMMO', '弹药'), 0, 4);
       } else if (pk.kind === 'cashbag') {
         ctx.fillStyle = '#2ecc71';
         ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill();
@@ -1587,7 +1612,7 @@ function createRenderer(canvas) {
     ctx.fillRect(26, 52, 150 * (state.health / 100), 12);
     ctx.fillStyle = '#ffffff';
     ctx.font = '12px sans-serif';
-    ctx.fillText(`HP ${Math.ceil(state.health)}`, 182, 62);
+    ctx.fillText(`${L('HP', '生命')} ${Math.ceil(state.health)}`, 182, 62);
     ctx.font = '20px sans-serif';
     let stars = '';
     for (let i = 0; i < 5; i += 1) stars += i < state.wanted ? '★' : '☆';
@@ -1595,9 +1620,12 @@ function createRenderer(canvas) {
     ctx.fillText(stars, 26, 92);
     ctx.fillStyle = '#ffffff';
     ctx.font = '13px sans-serif';
-    ctx.fillText(state.player.car ? `🚗 ${state.player.car.type.toUpperCase()} — E to exit` : `🔫 Ammo ${state.ammo} / 12 — F / click to shoot`, 26, 110);
+    const carNames = { sedan: '轿车', taxi: '出租车', truck: '卡车', sport: '跑车', police: '警车' };
+    ctx.fillText(state.player.car
+      ? (LANG === 'zh' ? `🚗 ${carNames[state.player.car.type] || state.player.car.type} — 按 E 下车` : `🚗 ${state.player.car.type.toUpperCase()} — E to exit`)
+      : (LANG === 'zh' ? `🔫 子弹 ${state.ammo} / 12 — 按 F / 点击射击` : `🔫 Ammo ${state.ammo} / 12 — F / click to shoot`), 26, 110);
     const objText = state.missionIndex < MISSIONS.length
-      ? `Mission ${state.missionIndex + 1}: ${MISSIONS[state.missionIndex].name} — ${objective}`
+      ? (LANG === 'zh' ? `任务 ${state.missionIndex + 1}：${MISSIONS[state.missionIndex].name} —— ${objective}` : `Mission ${state.missionIndex + 1}: ${MISSIONS[state.missionIndex].name} — ${objective}`)
       : objective;
     ctx.font = 'bold 16px sans-serif';
     fitFont(objText, 'bold', 16, viewW - 44);
@@ -1631,32 +1659,46 @@ function createRenderer(canvas) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffd700';
-    fitFont('PORT SOLANO', 'bold', 64, viewW - 16);
-    ctx.fillText('PORT SOLANO', viewW / 2, viewH * 0.3);
+    const titleText = L('PORT SOLANO', '索拉诺港');
+    fitFont(titleText, 'bold', 64, viewW - 16);
+    ctx.fillText(titleText, viewW / 2, viewH * 0.3);
     ctx.fillStyle = '#ffffff';
-    fitFont('An open-world crime story — steal, drive, run, survive.', 'bold', 26, viewW - 16);
-    ctx.fillText('An open-world crime story — steal, drive, run, survive.', viewW / 2, viewH * 0.3 + 44);
+    const subText = L('An open-world crime story — steal, drive, run, survive.', '开放世界犯罪故事——偷车、飙车、逃亡、活下去。');
+    fitFont(subText, 'bold', 26, viewW - 16);
+    ctx.fillText(subText, viewW / 2, viewH * 0.3 + 44);
     ctx.fillStyle = '#dddddd';
-    const lines = [
-      'WASD / arrows — move & drive   •   E — steal / exit car   •   F or click — shoot',
-      'Space — punch   •   R — reload   •   P / Esc — pause   •   M — mute',
-      'Three story missions. Wanted stars bring the police. Lose them, or pay the price.',
-      'Touch: on-screen pad to move, buttons to act — tap the city to shoot that way.',
+    const lines = LANG === 'zh' ? [
+      '跟着金色 ◆ 标记走，就是任务地点。小地图右上角也能看到。',
+      '电脑：WASD / 方向键移动和开车 • E 上车/下车 • F 或点击射击',
+      '空格拳击 • R 换弹 • P / Esc 暂停 • M 静音',
+      '手机：左下方向键移动，右下按钮上车、拳击、射击；点屏幕也能开枪。',
+      '共 3 个主线任务。犯事会涨通缉星，警察会来抓你——甩掉他们！',
+      '没血了找白色十字补血，没子弹了找绿盒子补弹药。',
+    ] : [
+      'Follow the gold ◆ marker — that is your mission target. It is on the minimap too.',
+      'PC: WASD / arrows — move & drive  •  E — enter / exit car  •  F or click — shoot',
+      'Space — punch  •  R — reload  •  P / Esc — pause  •  M — mute',
+      'Touch: left pad to move, right buttons to act — tap the city to shoot that way.',
+      'Three story missions. Crimes raise your wanted stars — lose the cops!',
+      'Low on health? Find a white cross. Out of ammo? Find a green box.',
     ];
-    lines.forEach((line, i) => { fitFont(line, '', 17, viewW - 16); ctx.fillText(line, viewW / 2, viewH * 0.46 + i * 28); });
+    lines.forEach((line, i) => { fitFont(line, '', 16, viewW - 16); ctx.fillText(line, viewW / 2, viewH * 0.44 + i * 24); });
     ctx.fillStyle = '#ffcc00';
-    fitFont('▶  CLICK or press ENTER to play', 'bold', 22, viewW - 16);
-    ctx.fillText('▶  CLICK or press ENTER to play', viewW / 2, viewH * 0.62);
+    const playText = L('▶  CLICK or press ENTER to play', '▶  点击屏幕或按回车开始游戏');
+    fitFont(playText, 'bold', 22, viewW - 16);
+    ctx.fillText(playText, viewW / 2, viewH * 0.68);
     if (best.hasSave) {
       ctx.fillStyle = '#7ee787';
-      fitFont('💾  Saved game found — press C to continue', 'bold', 18, viewW - 16);
-      ctx.fillText('💾  Saved game found — press C to continue', viewW / 2, viewH * 0.62 + 34);
+      const saveText = L('💾  Saved game found — press C to continue', '💾  发现存档——按 C 继续游戏');
+      fitFont(saveText, 'bold', 18, viewW - 16);
+      ctx.fillText(saveText, viewW / 2, viewH * 0.68 + 32);
     }
     ctx.fillStyle = '#aaaaaa';
-    const fy = viewH * (viewW < 560 ? 0.70 : 0.78);
-    fitFont('A wholly original game. No characters, places or art from any commercial game.', '', 14, viewW - 16);
-    ctx.fillText('A wholly original game. No characters, places or art from any commercial game.', viewW / 2, fy);
-    const bestLine = 'Best run: $' + best.money + '  •  Missions done: ' + best.missions;
+    const fy = viewH * (viewW < 560 ? 0.80 : 0.84);
+    const footText = L('A wholly original game.', '一款完全原创的小游戏。');
+    fitFont(footText, '', 14, viewW - 16);
+    ctx.fillText(footText, viewW / 2, fy);
+    const bestLine = LANG === 'zh' ? '最佳成绩：$' + best.money + '  •  已完成任务：' + best.missions + ' 个' : 'Best run: $' + best.money + '  •  Missions done: ' + best.missions;
     fitFont(bestLine, '', 14, viewW - 16);
     ctx.fillText(bestLine, viewW / 2, fy + 24);
     ctx.restore();
@@ -1670,16 +1712,18 @@ function createRenderer(canvas) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 44px sans-serif';
-    ctx.fillText('PAUSED', viewW / 2, viewH * 0.38);
+    ctx.fillText(L('PAUSED', '已暂停'), viewW / 2, viewH * 0.38);
     ctx.fillStyle = '#dddddd';
-    fitFont('P / Esc — resume    •    S — save game    •    Click SAVE below', '', 18, viewW - 16);
-    ctx.fillText('P / Esc — resume    •    S — save game    •    Click SAVE below', viewW / 2, viewH * 0.38 + 40);
+    const pauseLine = L('P / Esc — resume    •    S — save game    •    Click SAVE below', 'P / Esc —— 继续    •    S —— 保存游戏    •    点击下方保存');
+    fitFont(pauseLine, '', 18, viewW - 16);
+    ctx.fillText(pauseLine, viewW / 2, viewH * 0.38 + 40);
     ctx.fillStyle = '#ffcc00';
     ctx.font = 'bold 20px sans-serif';
-    ctx.fillText('[ SAVE GAME ]', viewW / 2, viewH * 0.52);
+    ctx.fillText(L('[ SAVE GAME ]', '[ 保存游戏 ]'), viewW / 2, viewH * 0.52);
     ctx.fillStyle = '#ffffff';
-    fitFont('Progress is also saved automatically when a mission is completed.', '', 16, viewW - 16);
-    ctx.fillText('Progress is also saved automatically when a mission is completed.', viewW / 2, viewH * 0.52 + 30);
+    const pauseNote = L('Progress is also saved automatically when a mission is completed.', '完成任务时也会自动保存进度。点任意处或按暂停键继续。');
+    fitFont(pauseNote, '', 16, viewW - 16);
+    ctx.fillText(pauseNote, viewW / 2, viewH * 0.52 + 30);
     ctx.restore();
   }
 
@@ -1691,20 +1735,21 @@ function createRenderer(canvas) {
     ctx.textAlign = 'center';
     ctx.fillStyle = state.over === 'busted' ? '#4488ff' : '#ff4444';
     ctx.font = 'bold 60px sans-serif';
-    ctx.fillText(state.over === 'busted' ? 'BUSTED!' : 'WASTED!', viewW / 2, viewH * 0.4);
+    ctx.fillText(state.over === 'busted' ? L('BUSTED!', '被抓了！') : L('WASTED!', '你挂了！'), viewW / 2, viewH * 0.4);
     ctx.fillStyle = '#ffffff';
     const overLine = state.over === 'busted'
-      ? 'The Solano PD hauled you in. The story starts over — but the city remembers nothing.'
-      : 'Port Solano got the better of you this time.';
+      ? L('The Solano PD hauled you in. The story starts over.', '你被索拉诺警察抓走了。故事重新开始。')
+      : L('Port Solano got the better of you this time.', '这次索拉诺港把你打败了。');
     fitFont(overLine, '', 20, viewW - 16);
     ctx.fillText(overLine, viewW / 2, viewH * 0.4 + 40);
     ctx.fillStyle = '#ffd700';
-    const statsLine = `Money: $${state.money}   •   Missions done: ${state.stats.missionsDone}   •   Cars stolen: ${state.stats.stolen}`;
+    const statsLine = LANG === 'zh' ? `金钱：$${state.money}   •   完成任务：${state.stats.missionsDone} 个   •   偷车：${state.stats.stolen} 辆` : `Money: $${state.money}   •   Missions done: ${state.stats.missionsDone}   •   Cars stolen: ${state.stats.stolen}`;
     fitFont(statsLine, 'bold', 18, viewW - 16);
     ctx.fillText(statsLine, viewW / 2, viewH * 0.4 + 80);
     ctx.fillStyle = '#ffffff';
-    fitFont('▶  CLICK or press ENTER to try again', 'bold', 18, viewW - 16);
-    ctx.fillText('▶  CLICK or press ENTER to try again', viewW / 2, viewH * 0.58);
+    const retryText = L('▶  CLICK or press ENTER to try again', '▶  点击或按回车再来一局');
+    fitFont(retryText, 'bold', 18, viewW - 16);
+    ctx.fillText(retryText, viewW / 2, viewH * 0.58);
     ctx.restore();
   }
 
@@ -1774,12 +1819,12 @@ function runGame() {
     accumulator = 0;
     screen = SCREEN_PLAY;
     audio.unlock();
-    announce('Playing. Steal a car with E, follow the gold marker.');
+    announce(L('Playing. Steal a car with E, follow the gold marker.', '游戏开始。按 E 偷车，跟着金色标记走。'));
   }
 
   function endGame() {
     screen = SCREEN_OVER;
-    announce(world.state.over === 'busted' ? 'Busted by the Solano PD.' : 'Wasted. Port Solano got you.');
+    announce(world.state.over === 'busted' ? L('Busted by the Solano PD.', '被索拉诺警察抓住了。') : L('Wasted. Port Solano got you.', '你挂了。'));
   }
 
   function mouseWorld() {
@@ -1827,6 +1872,42 @@ function runGame() {
   bindHold('btn-pause', () => input.pressAction(ACTION_PAUSE));
   bindHold('btn-shoot', () => { aimAhead(); input.pressAction(ACTION_SHOOT | ACTION_CONFIRM); });
 
+  // ---- Language toggle: EN (default) / 中文 — switches every label ----
+  const langBtn = document.getElementById('btn-lang');
+  function syncLangUI() {
+    const zh = LANG === 'zh';
+    document.documentElement.lang = zh ? 'zh-CN' : 'en';
+    if (langBtn) {
+      langBtn.innerHTML = zh ? '<span style="opacity:.55">EN</span>&nbsp;/&nbsp;<b>中文</b>' : '<b>EN</b>&nbsp;/&nbsp;<span style="opacity:.55">中文</span>';
+      langBtn.setAttribute('aria-label', zh ? 'Switch to English' : '切换到中文');
+    }
+    const punchBtn = document.getElementById('btn-punch');
+    if (punchBtn) { punchBtn.textContent = zh ? '拳' : 'Hit'; punchBtn.setAttribute('aria-label', zh ? '拳击' : 'Punch'); }
+    const shootBtn = document.getElementById('btn-shoot');
+    if (shootBtn) { shootBtn.textContent = zh ? '射击' : 'Shoot'; shootBtn.setAttribute('aria-label', zh ? '射击' : 'Shoot'); }
+    const pauseBtn = document.getElementById('btn-pause');
+    if (pauseBtn) { pauseBtn.textContent = zh ? '❚❚ 暂停' : '❚❚ Pause'; pauseBtn.setAttribute('aria-label', zh ? '暂停' : 'Pause'); }
+    const reloadBtn = document.getElementById('btn-reload');
+    if (reloadBtn) reloadBtn.setAttribute('aria-label', zh ? '换弹匣' : 'Reload');
+    const enterBtn = document.getElementById('btn-enter');
+    if (enterBtn) enterBtn.setAttribute('aria-label', zh ? '上车 / 下车' : 'Enter / exit car');
+    canvas.setAttribute('aria-label', zh
+      ? '索拉诺港：俯视开放世界犯罪游戏。开车、偷车、躲警察，完成三个剧情任务。'
+      : 'Port Solano: a top-down open-world crime game. Drive, steal cars, dodge the police, finish three story missions.');
+  }
+  if (langBtn) {
+    langBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      LANG = LANG === 'zh' ? 'en' : 'zh';
+      MISSIONS = LANG === 'zh' ? MISSIONS_ZH : MISSIONS_EN;
+      audio.unlock();
+      audio.click();
+      syncLangUI();
+      announce(L('Language: English', '语言：中文'));
+    });
+  }
+  syncLangUI();
+
   function frame(now) {
     requestAnimationFrame(frame);
     accumulator += Math.min((now - last) / 1000, MAX_FRAME);
@@ -1836,7 +1917,7 @@ function runGame() {
     const click = input.takeClick();
     if (actions & ACTION_MUTE) {
       const muted = audio.toggleMute();
-      announce(muted ? 'Sound off.' : 'Sound on.');
+      announce(muted ? L('Sound off.', '声音已关。') : L('Sound on.', '声音已开。'));
     }
 
     if (screen === SCREEN_TITLE) {
@@ -1848,7 +1929,7 @@ function runGame() {
         audio.unlock();
         screen = SCREEN_PLAY;
         savedMissions = world.state.stats.missionsDone;
-        announce('Save loaded. Welcome back to Port Solano.');
+        announce(L('Save loaded. Welcome back to Port Solano.', '存档已读取。欢迎回到索拉诺港。'));
       }
       while (accumulator >= STEP && screen === SCREEN_TITLE) {
         world.step(STEP, { steer: 0, throttle: 0, punch: false }, 0, { x: 0, y: 0 });
@@ -1857,7 +1938,7 @@ function runGame() {
     } else if (screen === SCREEN_PLAY) {
       if (actions & ACTION_PAUSE) {
         screen = SCREEN_PAUSED;
-        announce('Paused.');
+        announce(L('Paused.', '已暂停。'));
         accumulator = 0;
       } else {
         let firstStep = true;
@@ -1877,11 +1958,11 @@ function runGame() {
     } else if (screen === SCREEN_PAUSED) {
       if (actions & ACTION_PAUSE) {
         screen = SCREEN_PLAY;
-        announce('Playing.');
+        announce(L('Playing.', '继续游戏。'));
       } else if (input.held('s') || input.held('S')) {
-        if (world.save()) { announce('Game saved.'); best = readBest(); }
+        if (world.save()) { announce(L('Game saved.', '游戏已保存。')); best = readBest(); }
       } else if (click && Math.abs(click.y - renderer.height * 0.52) < 24 && Math.abs(click.x - renderer.width / 2) < 110) {
-        if (world.save()) { announce('Game saved.'); best = readBest(); }
+        if (world.save()) { announce(L('Game saved.', '游戏已保存。')); best = readBest(); }
       } else if (actions & ACTION_CONFIRM || click) {
         screen = SCREEN_PLAY;
       }
@@ -1900,11 +1981,11 @@ function runGame() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && screen === SCREEN_PLAY) {
       screen = SCREEN_PAUSED;
-      announce('Paused.');
+      announce(L('Paused.', '已暂停。'));
     }
   });
 
-  announce('Port Solano. Press Enter or click to start.');
+  announce(L('Port Solano. Press Enter or click to start.', '索拉诺港。按回车或点击开始。'));
   requestAnimationFrame(frame);
 }
 
